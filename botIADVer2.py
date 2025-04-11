@@ -37,6 +37,8 @@ def init_db():
         option2 TEXT,
         option3 TEXT,
         option4 TEXT,
+        option5 TEXT,
+        option6 TEXT,
         image_path TEXT,
         multiple_correct TEXT,  # Для вопросов с несколькими правильными ответами (через запятую)
         FOREIGN KEY (category_id) REFERENCES categories(id),
@@ -212,6 +214,14 @@ def ask_question(message):
         )
     elif q_type == 'four_options':
         shuffled = random.sample(options[:4], 4)
+        for option in shuffled:
+            keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
+    elif q_type == 'five_options':
+        shuffled = random.sample(options[:5], 5)
+        for option in shuffled:
+            keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
+    elif q_type == 'six_options':
+        shuffled = random.sample(options[:5], 5)
         for option in shuffled:
             keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
     elif q_type == 'multiple_choice':
