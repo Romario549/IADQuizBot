@@ -1,5 +1,5 @@
 import telebot
-from teleb ыot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3
 import random
 import time
