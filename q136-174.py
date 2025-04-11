@@ -61,3 +61,46 @@ VALUES (3, 2, 'Что означает этот дорожный знак?', 'fo
 
 conn.commit()
 conn.close()
+
+
+#136
+cursor.execute('''
+INSERT INTO questions (
+test_id, category_id, 
+question, question_type, correct_answer, 
+option1, option2, option3, option4, option5, option6)
+VALUES 
+(1, 3, 'Звуковой сигнал "Прошу уменьшить ход"', 'six_options', 'продолжительный и короткий звук'
+'один продолжительный звук', 'один короткий звук', 'серия коротких звуков ', 
+'четыре коротких звука ', 'два коротких звука', 'продолжительный и короткий звук')
+''')
+
+
+#137
+cursor.execute('''
+INSERT INTO questions (
+test_id, category_id, 
+question, question_type, correct_answer, 
+option1, option2, option3, option4, option5, option6)
+VALUES 
+(1, 3, 'Звуковой сигнал "Прошу выйти на связь"', 'six_options', 'продолжительный, короткий и продолжительный звук'
+'один продолжительный звук', 'один короткий звук', 'серия коротких звуков ', 
+'четыре коротких звука ', 'два продолжительных и два коротких звука', 'продолжительный, короткий и продолжительный звук')
+''')
+
+#138
+cursor.execute('''
+INSERT INTO questions (
+test_id, category_id, 
+question, question_type, correct_answer, 
+option1, option2, option3, option4, option5, option6)
+VALUES 
+(1, 3, 'ЗЗвуковой сигнал "Я Вас понял"', 'six_options', 'продолжительный, короткий, продолжительный и короткий звук'
+'один продолжительный звук', 'один короткий звук', 'серия коротких звуков ', 
+'четыре коротких звука ', 'продолжительный, короткий и продолжительный звук', 'продолжительный, короткий, продолжительный и короткий звук')
+''')
+
+
+
+
+
