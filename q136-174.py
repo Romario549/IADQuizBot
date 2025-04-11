@@ -1,13 +1,78 @@
 import sqlite3
 
+def init_db():
+    conn = sqlite3.connect('quiz.db')
+    cursor = conn.cursor()
+
+    # Таблица тестов
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS tests (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL
+    )''')
+
+    # Таблица категорий вопросов в тестах
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL
+    )''')
+
+    # Таблица вопросов
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS questions (
+        id INTEGER PRIMARY KEY,
+        category_id INTEGER,
+        test_id INTEGER,
+        question TEXT NOT NULL,
+        question_type TEXT NOT NULL,
+        correct_answer TEXT NOT NULL,
+        option1 TEXT,
+        option2 TEXT,
+        option3 TEXT,
+        option4 TEXT,
+        option5 TEXT,
+        option6 TEXT,
+        image_path TEXT,
+        multiple_correct TEXT,  
+        FOREIGN KEY (category_id) REFERENCES categories(id),
+        FOREIGN KEY (test_id) REFERENCES tests(id)
+    )''')
+
+    # Таблица статистики пользователей
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_stats (
+        user_id INTEGER,
+        test_id INTEGER,
+        correct_answers INTEGER DEFAULT 0,
+        total_questions INTEGER DEFAULT 0,
+        best_time INTEGER,
+        PRIMARY KEY (user_id, test_id)
+    )''')
+
+    # Добавляем тесты, если их нет
+    cursor.execute("SELECT COUNT(*) FROM tests")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 1')")
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 2')")
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 3')")
+
+    # Добавляем категории, если их нет
+    cursor.execute("SELECT COUNT(*) FROM categories")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO categories (name) VALUES ('Опознавательные знаки')")
+        cursor.execute("INSERT INTO categories (name) VALUES ('Нормативные документы')")
+        cursor.execute("INSERT INTO categories (name) VALUES ('Сигналы')")
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
 conn = sqlite3.connect('quiz.db')
 cursor = conn.cursor()
-cursor.execute("INSERT INTO categories (name) VALUES ('Опознавательные знаки')")
-cursor.execute("INSERT INTO categories (name) VALUES ('Нормативные документы')")
-cursor.execute("INSERT INTO categories (name) VALUES ('Сигналы')")
-
-
-
 # После создания таблиц, но перед commit/close
 
 # 1. Вопрос типа "Верно/Неверно"
@@ -220,7 +285,8 @@ test_id, category_id,
 question, question_type, correct_answer, 
 option1, option2, option3, option4, option5, option6)
 VALUES 
-(1, 2, 'В условиях ограниченной видимости на каналах независимо от ширины судового хода разрешается двухстороннее движение одиночных самоходных судов с механическим двигателем и толкаемых составов, при условиях:', 'six_options', 'при визуальной видимости не менее двух длин судна (состава) по курсу',
+(1, 2, 'В условиях ограниченной видимости на каналах независимо от ширины судового хода разрешается двухстороннее движение одиночных самоходных судов с механическим двигателем и толкаемых составов, при условиях:', 'six_options', 
+'при визуальной видимости не менее двух длин судна (состава) по курсу',
 'при визуальной видимости берегов по траверзу', 'при визуальной видимости не менее двух длин судна (состава) по курсу', 
 'при визуальной видимости не менее трех длин судна (состава) по курсу', 'при визуальной видимости не менее 500 метров', 'на судне имеется радиолокационная станция', 'на ходовом мостике присутствуют не менее двух судоводителей, один из которых - капитан')
 ''')
@@ -379,7 +445,8 @@ test_id, category_id,
 question, question_type, correct_answer, 
 option1, option2, option3, option4)
 VALUES 
-(2, 1, 'При обнаружении пропусков воды в подводной части корпуса как временная мера могут быть допущены цементные заделки', 'four_options', 'не более 3 в одном отсеке',
+(2, 1, 'При обнаружении пропусков воды в подводной части корпуса как временная мера могут быть допущены цементные заделки', 
+'four_options', 'не более 3 в одном отсеке',
 'не более 3 в одном отсеке', 'не более 1 в одном отсеке', 'не более 2 в одном отсеке', 'не более 5 в одном отсеке')
 ''')
 
@@ -401,7 +468,8 @@ test_id, category_id,
 question, question_type, correct_answer, 
 option1, option2, option3, option4)
 VALUES 
-(2, 3, 'Проверка работоспособности всех элементов дистанционного управления на командном посту управления судном должна выполняться', 'four_options', 'перед каждым выходом судна в рейс',
+(2, 3, 'Проверка работоспособности всех элементов дистанционного управления на командном посту управления судном должна выполняться', 
+'four_options', 'перед каждым выходом судна в рейс',
 'не реже одного раза в неделю', 'не реже одного раза в месяц', 'не реже одного раза в две недели', 'перед каждым выходом судна в рейс')
 ''')
 
@@ -412,7 +480,8 @@ test_id, category_id,
 question, question_type, correct_answer, 
 option1, option2, option3, option4, option5)
 VALUES 
-(2, 3, 'Эксплуатация судна запрещается, если время перехода с основного управления рулем на запасное превышает', 'five_options', '10 секунд',
+(2, 3, 'Эксплуатация судна запрещается, если время перехода с основного управления рулем на запасное превышает', 
+'five_options', '10 секунд',
 '5 секунд', '10 секунд', '15 секунд', '30 секунд', '3 секунды')
 ''')
 

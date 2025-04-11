@@ -4,78 +4,6 @@ import sqlite3
 import random
 import time
 
-
-# Инициализация базы данных
-def init_db():
-    conn = sqlite3.connect('quiz.db')
-    cursor = conn.cursor()
-
-    # Таблица тестов
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS tests (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL
-    )''')
-
-    # Таблица категорий вопросов в тестах
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL
-    )''')
-
-
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS questions (
-        id INTEGER PRIMARY KEY,
-        category_id INTEGER,
-        test_id INTEGER,
-        question TEXT NOT NULL,
-        question_type TEXT NOT NULL,
-        correct_answer TEXT NOT NULL,
-        option1 TEXT,
-        option2 TEXT,
-        option3 TEXT,
-        option4 TEXT,
-        option5 TEXT,
-        option6 TEXT,
-        image_path TEXT,
-        multiple_correct TEXT,  
-        FOREIGN KEY (category_id) REFERENCES categories(id),
-        FOREIGN KEY (test_id) REFERENCES tests(id)
-    )''')
-
-    # Таблица статистики пользователей
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS user_stats (
-        user_id INTEGER,
-        test_id INTEGER,
-        correct_answers INTEGER DEFAULT 0,
-        total_questions INTEGER DEFAULT 0,
-        best_time INTEGER,
-        PRIMARY KEY (user_id, test_id)
-    )''')
-
-    # Добавляем тесты, если их нет
-    cursor.execute("SELECT COUNT(*) FROM tests")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 1')")
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 2')")
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 3')")
-
-    # Добавляем категории, если их нет
-    cursor.execute("SELECT COUNT(*) FROM categories")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO categories (name) VALUES ('Опознавательные знаки')")
-        cursor.execute("INSERT INTO categories (name) VALUES ('Нормативные документы')")
-        cursor.execute("INSERT INTO categories (name) VALUES ('Сигналы')")
-
-    conn.commit()
-    conn.close()
-
-
-init_db()
-
 TOKEN = '8087253865:AAERJhIB87wN2fi1yyl-0Zv3ovSQ3PUgIMw'
 bot = telebot.TeleBot(TOKEN)
 
@@ -143,6 +71,10 @@ def test_selected(call):
 
 
 # Задать вопрос
+def sanitize_callback_data(data):
+    """Очищает данные для callback_data, оставляя только допустимые символы."""
+    return ''.join(e for e in data if e.isalnum() or e == '_')
+
 def ask_question(message):
     user_data = getattr(bot, 'current_user_data', None)
     if not user_data:
@@ -152,119 +84,119 @@ def ask_question(message):
     conn = sqlite3.connect('quiz.db')
     cursor = conn.cursor()
 
-    # Build the query based on whether we have asked questions
-    if user_data['asked_questions']:
-        # Use parameterized query with NOT IN for asked questions
-        cursor.execute('''
-        SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
-        FROM questions 
-        WHERE test_id = ? AND id NOT IN (%s)
-        ORDER BY RANDOM() 
-        LIMIT 1
-        ''' % ','.join(['?']*len(user_data['asked_questions'])),
-        [user_data['test_id']] + list(user_data['asked_questions']))
-    else:
-        # No asked questions yet, simple query
-        cursor.execute('''
-        SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
-        FROM questions 
-        WHERE test_id = ?
-        ORDER BY RANDOM() 
-        LIMIT 1
-        ''', [user_data['test_id']])
+    try:
+        # Получаем вопрос, который еще не задавался
+        if user_data['asked_questions']:
+            cursor.execute('''
+            SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, option5, option6, image_path, multiple_correct 
+            FROM questions 
+            WHERE test_id = ? AND id NOT IN ({})
+            ORDER BY RANDOM() 
+            LIMIT 1
+            '''.format(','.join(['?'] * len(user_data['asked_questions']))),
+                           [user_data['test_id']] + list(user_data['asked_questions']))
+        else:
+            cursor.execute('''
+            SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, option5, option6, image_path, multiple_correct 
+            FROM questions 
+            WHERE test_id = ?
+            ORDER BY RANDOM() 
+            LIMIT 1
+            ''', [user_data['test_id']])
 
-    question_data = cursor.fetchone()
-    conn.close()
+        question_data = cursor.fetchone()
 
-    if not question_data:
-        bot.send_message(message.chat.id, "В этом тесте пока нет вопросов или все вопросы уже заданы.")
-        return
+        if not question_data:
+            bot.send_message(message.chat.id, "Вопросы для этого теста закончились!")
+            return
 
-    question_id, question_text, q_type, correct, *options, image_path, multiple_correct = question_data
+        # Распаковываем данные вопроса
+        (question_id, question_text, q_type, correct_answer,
+         option1, option2, option3, option4, option5, option6,
+         image_path, multiple_correct) = question_data
 
-    # Add question to asked questions
-    user_data['asked_questions'].add(question_id)
+        # Добавляем вопрос в список заданных
+        user_data['asked_questions'].add(question_id)
 
-    # Update current question data
-    user_data['current_question'] = {
-        'id': question_id,
-        'correct': correct,
-        'multiple_correct': multiple_correct.split(',') if multiple_correct else None,
-        'start_time': time.time(),
-        'type': q_type
-    }
+        # Сохраняем текущий вопрос
+        user_data['current_question'] = {
+            'id': question_id,
+            'correct': correct_answer,
+            'multiple_correct': multiple_correct.split(',') if multiple_correct else None,
+            'start_time': time.time(),
+            'type': q_type
+        }
 
-    # Для вопросов с числовым ответом
-    if q_type == 'number_input':
-        bot.send_message(
-            message.chat.id,
-            f"Вопрос {user_data['total'] + 1}/50:\n{question_text}\n\nВведите число:"
-        )
-        user_data['total'] += 1
-        return
+        # Создаем клавиатуру в зависимости от типа вопроса
+        keyboard = InlineKeyboardMarkup()
+        options = [opt for opt in [option1, option2, option3, option4, option5, option6] if opt is not None]
 
-    # Создаем клавиатуру для других типов вопросов
-    keyboard = InlineKeyboardMarkup()
+        if q_type == 'number_input':
+            bot.send_message(
+                message.chat.id,
+                f"Вопрос {user_data['total'] + 1}/50:\n{question_text}\n\nВведите число:"
+            )
+            user_data['total'] += 1
+            return
 
-    if q_type == 'true_false':
-        keyboard.add(
-            InlineKeyboardButton("Верно", callback_data="answer_Верно"),
-            InlineKeyboardButton("Неверно", callback_data="answer_Неверно")
-        )
-    elif q_type == 'two_options':
-        keyboard.add(
-            InlineKeyboardButton(options[0], callback_data=f"answer_{options[0]}"),
-            InlineKeyboardButton(options[1], callback_data=f"answer_{options[1]}")
-        )
-    elif q_type == 'four_options':
-        shuffled = random.sample(options[:4], 4)
-        for option in shuffled:
-            keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
-    elif q_type == 'five_options':
-        num_options_to_sample = min(5, len(options))
-        shuffled = random.sample(options[:num_options_to_sample], num_options_to_sample)
-        for option in shuffled:
-            keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
-    elif q_type == 'six_options':
-        num_options_to_sample = min(6, len(options))
-        shuffled = random.sample(options[:num_options_to_sample], num_options_to_sample)
-        for option in shuffled:
-            keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
-    elif q_type == 'multiple_choice':
-        # Для вопросов с несколькими правильными ответами
-        correct_answers = multiple_correct.split(',')
-        options_list = options[:4]
-        # Добавляем все варианты
-        for option in options_list:
-            keyboard.add(InlineKeyboardButton(option, callback_data=f"manswer_{option}"))
-        # Кнопка подтверждения выбора
-        keyboard.add(InlineKeyboardButton("✅ Готово", callback_data="manswer_done"))
+        elif q_type == 'true_false':
+            keyboard.add(
+                InlineKeyboardButton("Верно", callback_data="answer_Верно"),
+                InlineKeyboardButton("Неверно", callback_data="answer_Неверно")
+            )
 
-    # Отправляем изображение (если есть) и вопрос
-    if image_path:
-        try:
-            with open(image_path, 'rb') as photo:
-                bot.send_photo(
+        elif q_type in ['two_options', 'four_options', 'five_options', 'six_options']:
+            required_options = {
+                'two_options': 2,
+                'four_options': 4,
+                'five_options': 5,
+                'six_options': 6
+            }[q_type]
+
+            if len(options) >= required_options:
+                shuffled = random.sample(options[:required_options], required_options)
+                for option in shuffled:
+                    keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{sanitize_callback_data(option)}"))
+            else:
+                for option in options:
+                    keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{sanitize_callback_data(option)}"))
+
+        elif q_type == 'multiple_choice':
+            for option in options:
+                keyboard.add(InlineKeyboardButton(option, callback_data=f"manswer_{sanitize_callback_data(option)}"))
+            keyboard.add(InlineKeyboardButton("✅ Готово", callback_data="manswer_done"))
+
+        # Отправляем вопрос с изображением (если есть) или без
+        if image_path:
+            try:
+                with open(image_path, 'rb') as photo:
+                    bot.send_photo(
+                        message.chat.id,
+                        photo,
+                        caption=f"Вопрос {user_data['total'] + 1}/50:\n{question_text }",
+                        reply_markup=keyboard
+                    )
+            except Exception as e:
+                print(f"Ошибка загрузки изображения: {e}")
+                bot.send_message(
                     message.chat.id,
-                    photo,
-                    caption=f"Вопрос {user_data['total'] + 1}/50:\n{question_text}",
+                    f"Вопрос {user_data['total'] + 1}/50:\n{question_text}",
                     reply_markup=keyboard
                 )
-        except FileNotFoundError:
+        else:
             bot.send_message(
                 message.chat.id,
                 f"Вопрос {user_data['total'] + 1}/50:\n{question_text}",
                 reply_markup=keyboard
             )
-    else:
-        bot.send_message(
-            message.chat.id,
-            f"Вопрос {user_data['total'] + 1}/50:\n{question_text}",
-            reply_markup=keyboard
-        )
 
-    user_data['total'] += 1
+        user_data['total'] += 1
 
+    except Exception as e:
+        print(f"Ошибка при задании вопроса: {e}")
+        bot.send_message(message.chat.id, "Произошла ошибка при загрузке вопроса. Попробуйте еще раз.")
+    finally:
+        conn.close()
 
 # Обработка числового ответа
 @bot.message_handler(func=lambda message: getattr(bot, 'current_user_data', None) and
