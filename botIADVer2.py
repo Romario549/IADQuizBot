@@ -24,7 +24,7 @@ def init_db():
         name TEXT NOT NULL
     )''')
 
-    # Таблица вопросов
+
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY,
@@ -40,7 +40,7 @@ def init_db():
         option5 TEXT,
         option6 TEXT,
         image_path TEXT,
-        multiple_correct TEXT,  # Для вопросов с несколькими правильными ответами (через запятую)
+        multiple_correct TEXT,  
         FOREIGN KEY (category_id) REFERENCES categories(id),
         FOREIGN KEY (test_id) REFERENCES tests(id)
     )''')
@@ -59,9 +59,9 @@ def init_db():
     # Добавляем тесты, если их нет
     cursor.execute("SELECT COUNT(*) FROM tests")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест по ПДД 1')")
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест по ПДД 2')")
-        cursor.execute("INSERT INTO tests (name) VALUES ('Тест по ПДД 3')")
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 1')")
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 2')")
+        cursor.execute("INSERT INTO tests (name) VALUES ('Тест 3')")
 
     # Добавляем категории, если их нет
     cursor.execute("SELECT COUNT(*) FROM categories")
@@ -152,36 +152,40 @@ def ask_question(message):
     conn = sqlite3.connect('quiz.db')
     cursor = conn.cursor()
 
-    # Получаем все вопросы для теста, которые еще не задавались
-    cursor.execute('''
-    SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
-    FROM questions 
-    WHERE test_id = ? AND id NOT IN ({})
-    ORDER BY RANDOM() 
-    LIMIT 1
-    '''.format(','.join(['?'] * len(user_data['asked_questions'])) if user_data['asked_questions'] else '''
-    SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
-    FROM questions 
-    WHERE test_id = ?
-    ORDER BY RANDOM() 
-    LIMIT 1
-    ''',
-     [user_data['test_id']] + list(user_data['asked_questions']) if user_data['asked_questions']
-     else [user_data['test_id']]))
+    # Build the query based on whether we have asked questions
+    if user_data['asked_questions']:
+        # Use parameterized query with NOT IN for asked questions
+        cursor.execute('''
+        SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
+        FROM questions 
+        WHERE test_id = ? AND id NOT IN (%s)
+        ORDER BY RANDOM() 
+        LIMIT 1
+        ''' % ','.join(['?']*len(user_data['asked_questions'])),
+        [user_data['test_id']] + list(user_data['asked_questions']))
+    else:
+        # No asked questions yet, simple query
+        cursor.execute('''
+        SELECT id, question, question_type, correct_answer, option1, option2, option3, option4, image_path, multiple_correct 
+        FROM questions 
+        WHERE test_id = ?
+        ORDER BY RANDOM() 
+        LIMIT 1
+        ''', [user_data['test_id']])
 
     question_data = cursor.fetchone()
     conn.close()
 
     if not question_data:
         bot.send_message(message.chat.id, "В этом тесте пока нет вопросов или все вопросы уже заданы.")
-    return
+        return
 
     question_id, question_text, q_type, correct, *options, image_path, multiple_correct = question_data
 
-    # Добавляем вопрос в список заданных
+    # Add question to asked questions
     user_data['asked_questions'].add(question_id)
 
-    # Обновляем данные вопроса
+    # Update current question data
     user_data['current_question'] = {
         'id': question_id,
         'correct': correct,
@@ -217,11 +221,13 @@ def ask_question(message):
         for option in shuffled:
             keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
     elif q_type == 'five_options':
-        shuffled = random.sample(options[:5], 5)
+        num_options_to_sample = min(5, len(options))
+        shuffled = random.sample(options[:num_options_to_sample], num_options_to_sample)
         for option in shuffled:
             keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
     elif q_type == 'six_options':
-        shuffled = random.sample(options[:5], 5)
+        num_options_to_sample = min(6, len(options))
+        shuffled = random.sample(options[:num_options_to_sample], num_options_to_sample)
         for option in shuffled:
             keyboard.add(InlineKeyboardButton(option, callback_data=f"answer_{option}"))
     elif q_type == 'multiple_choice':
@@ -521,4 +527,6 @@ def process_question_data(message):
 # Запуск бота
 if __name__ == '__main__':
     print("Бот запущен...")
+    bot.remove_webhook()  # Delete any existing webhook first
+    time.sleep(1)  # Small delay
     bot.infinity_polling()
